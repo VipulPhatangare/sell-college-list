@@ -520,3 +520,14 @@ select:focus {
     color: #e65100; /* Dark orange for the "Note:" text */
 }
 
+.download-btn:hover {
+    background-color: #218838;
+}
+
+html {
+    scroll-behavior: smooth;
+}
+
+
+
+
