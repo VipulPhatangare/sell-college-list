@@ -4,7 +4,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MHT CET College List Generator</title>
+    <title>CampusDekho</title>
+    <link rel="icon" href="/asset/cd.png" type="image/png">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/css/home.css">
 </head>
@@ -16,7 +17,9 @@
         <header>
             <h1>Preference list Generator</h1>
         </header>
-        
+        <div class="note-box">
+            <strong>Note:</strong> Please fill in the information carefully. This list is generated based on last year's cutoff data. Sometimes, the number of colleges may be fewer than you expect due to limited available choices, so please select your options carefully.
+        </div>
         <main>
             <form id="collegeForm">
                 <div class="form-group">
@@ -199,10 +202,15 @@
                 </div>
             </div>
 
-
+            <div class="loading-container" id="loadingContainer">
+                <div class="loading-spinner"></div>
+                <div class="loading-text">Generating your college list...</div>
+            </div>
         </main>
     </div>
 
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
     <script src="/js/home.js"></script>
 </body>
 </html>

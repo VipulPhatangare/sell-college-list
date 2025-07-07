@@ -7,6 +7,16 @@ const { createClient } = require('@supabase/supabase-js');
 
 require('dotenv').config();
 
+
+const session = require('express-session');
+
+app.use(session({
+  secret: 'your-secret-key',  // change to strong random string in production
+  resave: false,
+  saveUninitialized: true,
+  cookie: { secure: false } // true only if using HTTPS
+}));
+
 app.use(express.json());
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, "views"));
@@ -18,18 +28,43 @@ const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_KEY;
 const supabase = createClient(supabaseUrl, supabaseKey);
 
+app.get('/:code/:count', async (req, res) => {
+    const { code, count } = req.params;
+    // console.log(count);
 
-app.get('/:code', (req, res) => {
-    const {code}  = req.params;
-    console.log(code);
-    res.render('home');
+    if(code !== 'vipulPha'){
+            const { data, error } = await supabase
+            .from('collegeCodeCD')
+            .select('code')
+            .eq('code', code)
+            .single();
+
+        if (error && error.code !== 'PGRST116') {
+            console.error('Database error:', error.message);
+            return res.status(500).send('Internal Server Error');
+        }
+
+        if (data) {
+            // Code exists in DB
+            req.session.code = code;
+            req.session.count = count;
+            res.render('home');
+        } else {
+            // Code does not exist
+            res.status(404).send('Page Not Found.');
+        }
+    }else{
+        req.session.code = code;
+        req.session.count = count;
+        res.render('home');
+    }
 });
 
 const central_object = {
     percentile: 0
 }
 
-app.get('/api/fetchBranches', async (req, res) => {
+app.get('/fetchBranches', async (req, res) => {
     try {
         const { data, error } = await supabase
             .from('branch_new')
@@ -44,7 +79,7 @@ app.get('/api/fetchBranches', async (req, res) => {
     }
 });
 
-app.get('/api/fetchcity', async (req, res) => {
+app.get('/fetchcity', async (req, res) => {
     try {
         const { data, error } = await supabase
             .from('college_info')
@@ -63,7 +98,7 @@ app.get('/api/fetchcity', async (req, res) => {
     }
 });
 
-app.get('/api/fetchUniversity', async (req, res) => {
+app.get('/fetchUniversity', async (req, res) => {
     try {
         const { data, error } = await supabase
             .from('college_info')
@@ -1161,9 +1196,9 @@ function college_filter(colleges, formData) {
 
 
 
-app.post('/api/College_list', async (req, res) => {
+app.post('/College_list', async (req, res) => {
     const formData = req.body;
-    console.log(formData);
+    // console.log(formData);
 
     clear_new_data_function();
 
@@ -1172,7 +1207,7 @@ app.post('/api/College_list', async (req, res) => {
         central_object.percentile = formData.generalRank;
 
         formData.generalRank = await getRankFromPercentile(formData.generalRank);
-        console.log(formData);
+        // console.log(formData);
 
         if(central_object.percentile < 80 && formData.branchCategories[0] != 'All'){
             formData.branchCategories.push('COMP');
@@ -1187,7 +1222,36 @@ app.post('/api/College_list', async (req, res) => {
             new_data_of_student.specialReservation = formData.specialReservation;
         }
 
-        const colleges = await getColleges(formData);
+        let colleges = await getColleges(formData);
+        let college_counts;
+        let count = req.session.count;
+        if(count == 150 || count == '150'){
+            college_counts = 150;
+        }else if(count == 75 || count == '75'){
+            college_counts = 75;
+        }else if(count == 300 || count == '300'){
+            college_counts = 300;
+        }else{
+            return res.send('Do not change the college count using url. Hahahaa.');
+        }
+
+        let codeToDelete = req.session.code;
+        // 'vipulPha'
+
+        if(codeToDelete !== 'vipulPha'){
+            const { error } = await supabase
+                .from('collegeCodeCD')
+                .delete()
+                .eq('code', codeToDelete);
+
+            if (error) {
+                return console.error('Error deleting code:', error.message);
+            } else {
+                console.log(`Code '${codeToDelete}' deleted successfully.`);
+            }
+        }
+
+        colleges = colleges.slice(0,college_counts);
         // console.log(colleges);
         res.json(colleges);
     } catch (error) {

@@ -8,6 +8,7 @@ const central_object = {
 };
 
 let selectedBranches = [];
+let hasGeneratedList = false; // Track if list has been generated
 
 // DOM elements
 const casteSelect = document.getElementById('caste');
@@ -25,6 +26,8 @@ const branchSelect = document.getElementById('branch');
 const selectedBranchesContainer = document.getElementById('selectedBranchesContainer');
 const branchSelectionGroup = document.getElementById('branchSelectionGroup');
 const otherBranchCheckbox = document.getElementById('otherBranchCheckbox');
+const loadingContainer = document.getElementById('loadingContainer');
+const submitBtn = document.querySelector('.submit-btn'); // Get the submit button
 
 // Initialize
 updateSelectedCount(0);
@@ -112,9 +115,9 @@ function updateSelectedBranchCategories() {
     });
 }
 
-// Branch Selection Functions - MODIFIED PERMANENT DROPDOWN BEHAVIOR
+// Branch Selection Functions
 function toggleBranchSelection() {
-    customBranchBtn.style.display = 'none'; // Hide button permanently
+    customBranchBtn.style.display = 'none';
     branchSelect.classList.remove('hidden');
     branchSelect.focus();
 }
@@ -167,7 +170,6 @@ function removeBranch(branchValue) {
     updateSelectedBranchesDisplay();
 }
 
-// [Rest of your existing functions remain exactly the same...]
 // Form Handling Functions
 function handleCasteChange() {
     if (this.value === 'OPEN' || this.value === 'OBC' || this.value === 'SEBC') {
@@ -181,15 +183,15 @@ function handleCasteChange() {
 function handleFormSubmit(e) {
     e.preventDefault();
     
+    // Show loading animation
+    loadingContainer.style.display = 'flex';
+    
+    // Hide results container if it was previously shown
+    resultsContainer.style.display = 'none';
+    
     // Get all checked region checkboxes
     const regionCheckboxes = document.querySelectorAll('input[name="region"]:checked');
     const regions = Array.from(regionCheckboxes).map(cb => cb.value);
-    
-
-    // central_object.specialReservation = document.getElementById('specialReservation').value;
-    
-    // If "All Regions" is selected, ignore other selections
-    const finalRegions = regions.includes("All") ? ["All"] : regions;
     
     const formData = {
         generalRank: parseInt(document.getElementById('generalRank').value),
@@ -197,7 +199,7 @@ function handleFormSubmit(e) {
         gender: document.querySelector('input[name="gender"]:checked').value,
         tfws: tfwsCheckbox.checked,
         branchCategories: central_object.branchCategories,
-        city: finalRegions,
+        city: regions.includes("All") ? ["All"] : regions,
         selected_branches: selectedBranches,
         homeuniversity: homeuniversitySelect.value
     };
@@ -207,15 +209,22 @@ function handleFormSubmit(e) {
     // Validate rank is positive integer
     if (isNaN(formData.generalRank)) {
         alert('Please enter a valid percentile');
+        loadingContainer.style.display = 'none';
         return;
     }
 
-
-    generateCollegeList(formData);
-}
-
-function handleFinalizeClick() {
-    
+    // Use setTimeout to allow the UI to update before the heavy operation
+    setTimeout(() => {
+        generateCollegeList(formData)
+            .finally(() => {
+                loadingContainer.style.display = 'none';
+                // Hide the submit button after successful generation
+                if (!hasGeneratedList) {
+                    submitBtn.style.display = 'none';
+                    hasGeneratedList = true;
+                }
+            });
+    }, 100);
 }
 
 function handleRegionCheckboxChange(e) {
@@ -231,7 +240,7 @@ function handleRegionCheckboxChange(e) {
 // Data Fetching Functions
 async function fetchBranches() {
     try {
-        const response = await fetch('/api/fetchBranches');
+        const response = await fetch('/fetchBranches');
         let data = await response.json();
 
         branchSelect.innerHTML = '<option value="" disabled selected>Select branches</option>';
@@ -250,7 +259,6 @@ async function fetchBranches() {
                 option.innerHTML = `${element.branch_name}`;
                 branchSelect.appendChild(option);
             }
-            
         });
     } catch (error) {
         console.log(error);
@@ -259,7 +267,7 @@ async function fetchBranches() {
 
 async function fetchCity() {
     try {
-        const response = await fetch('/api/fetchcity');
+        const response = await fetch('/fetchcity');
         const data = await response.json();
 
         regionCheckboxGroup.innerHTML = `
@@ -287,7 +295,7 @@ async function fetchCity() {
 
 async function fetchUniversity() {
     try {
-        const response = await fetch('/api/fetchUniversity');
+        const response = await fetch('/fetchUniversity');
         const data = await response.json();
 
         homeuniversitySelect.innerHTML = `<option value="" disabled selected>Select your home university</option>`;
@@ -306,7 +314,7 @@ async function fetchUniversity() {
 // College List Functions
 async function generateCollegeList(formData) {
     try {
-        const response = await fetch('/api/College_list', {
+        const response = await fetch('/College_list', {
             method: 'POST',
             headers: {
                 "Content-Type": "application/json"
@@ -315,46 +323,27 @@ async function generateCollegeList(formData) {
         });
 
         const data = await response.json();
-        // console.log(data);
         displayColleges(data, formData);
+        return data;
     } catch (error) {
         console.log('Error:', error);
         alert('An error occurred while fetching college data');
+        throw error;
     }
 }
 
 function displayColleges(colleges, formData) {
     collegeCardsContainer.innerHTML = '';
 
-    // console.log(central_object.specialReservation);
-    // if (central_object.specialReservation != 'No') {
-    //     collegeCardsContainer.innerHTML = `
-    //         <div class="contact-message">
-    //             <h3>Thank you for your application!</h3>
-    //             <p>Our team will contact you within 24 hours regarding your ${formData.specialReservation} reservation.</p>
-    //         </div>
-    //     `;
-    //     resultsContainer.style.display = 'block';
-    //     return;
-    // }
-    
-    // Original college list display logic
     if (!colleges || colleges.length === 0) {
         collegeCardsContainer.innerHTML = '<p>No colleges found matching your criteria.</p>';
         resultsContainer.style.display = 'block';
         return;
     }
 
-    const collegeCount = 100;
     let count = 1;
-    colleges = colleges.slice(0, collegeCount);
     central_object.final_college_list = colleges;
     colleges.forEach(college => {
-        if(formData.tfws){
-            const card_tfws = createCollegeCard(college, formData, count,true);
-            count++;
-            collegeCardsContainer.appendChild(card_tfws);
-        }
         const card = createCollegeCard(college, formData, count,false);
         count++;
         collegeCardsContainer.appendChild(card);
@@ -362,10 +351,11 @@ function displayColleges(colleges, formData) {
     
     resultsContainer.style.display = 'block';
     updateSelectedCount(colleges.length);
+    generatePdf();
+
 }
 
 function createCollegeCard(college, formData, count, tfws) {
-    
     const card = document.createElement('div');
     card.className = 'college-card selected';
     card.dataset.code = college.choice_code;
@@ -379,7 +369,6 @@ function createCollegeCard(college, formData, count, tfws) {
             <div class="college-code">${count}</div>
             <div class="college-code">${college_code}</div>
             <div class="college-code">Seat type: ${college.seat_type}</div>
-            
         </div>
         <div class="college-name">${college.college_name}</div>
         <div>University: ${college.university}</div>
@@ -390,7 +379,6 @@ function createCollegeCard(college, formData, count, tfws) {
                 <div>${college.gopen}</div>
             </div>
     `;
-    
     
     if (formData.gender == 'Female') {
         card_content += `
@@ -439,8 +427,6 @@ function createCollegeCard(college, formData, count, tfws) {
         `;
     }
 
-
-
     card.innerHTML = card_content + `</div>`;
 
     return card;
@@ -455,124 +441,369 @@ function updateSelectedCount(count) {
     }
 }
 
+document.getElementById('downloadPdfBtn').addEventListener('click', generatePdf);
 
-document.getElementById('downloadPdfBtn').addEventListener('click', generatePdfList);
+// function generatePdf() {
+//     const { jsPDF } = window.jspdf;
+//     const doc = new jsPDF({
+//         orientation: 'landscape',
+//         unit: 'mm',
+//         format: 'a4'
+//     });
 
-function generatePdfList() {
-    const selectedColleges = document.querySelectorAll('.college-card.selected');
-    if (selectedColleges.length === 0) {
-        alert('Please select at least one college');
-        return;
+//     // Add title
+//     doc.setFontSize(20);
+//     doc.text('CampusDekho.ai', 14, 20);
+//     doc.setFontSize(12);
+    
+//     // Student information
+//     doc.text(`Percentile: ${central_object.formData.generalRank}`, 14, 30);
+//     doc.text(`Gender: ${central_object.formData.gender}`, 14, 36);
+//     doc.text(`Home University: ${central_object.formData.homeuniversity}`, 14, 42);
+//     doc.text(`Caste: ${central_object.formData.caste}`, 14, 48);
+
+//     // Format branch category
+//     const branch_cat_obj = {
+//         All: 'All',
+//         CIVIL: 'Civil',
+//         COMP: 'Computer Science',
+//         IT: 'Information Technology',
+//         COMPAI: 'CSE (Artificial Intelligence)',
+//         AI: 'Artificial Intelligence',
+//         ELECTRICAL: 'Electrical',
+//         ENTC: 'ENTC',
+//         MECH: 'Mechanical',
+//         OTHER: 'Other'
+//     };
+
+//     const branch_categories = central_object.formData.branchCategories
+//         .map(el => branch_cat_obj[el] || el)
+//         .join(", ");
+
+//     // Add branch categories with text wrapping
+//     const wrappedBranchText = doc.splitTextToSize(`Branch Categories: ${branch_categories}`, 270);
+//     let currentY = 54;
+//     doc.text(wrappedBranchText, 14, currentY);
+//     currentY += wrappedBranchText.length * 6;
+
+//     // Add selected branches if any
+//     if (selectedBranches.length > 0) {
+//         const selectedBranchesText = doc.splitTextToSize(`Selected Branches: ${selectedBranches.join(", ")}`, 270);
+//         doc.text(selectedBranchesText, 14, currentY);
+//         currentY += selectedBranchesText.length * 6;
+//     }
+
+//     // Format city list
+//     const cityString = central_object.formData.city.includes("All") ? "All Regions" : central_object.formData.city.join(", ");
+//     const wrappedCityText = doc.splitTextToSize(`Cities: ${cityString}`, 270);
+//     doc.text(wrappedCityText, 14, currentY);
+//     currentY += wrappedCityText.length * 6;
+
+//     // TFWS status
+//     const tfwsText = central_object.formData.tfws ? 'TFWS: Yes' : 'TFWS: No';
+//     doc.text(tfwsText, 14, currentY);
+//     currentY += 10;
+
+//     // Prepare table data
+//     let headData = ['No.', 'Choice Code', 'College Name', 'Branch', 'GOPEN'];
+
+//     if(central_object.formData.caste == 'EWS'){
+//         headData.push('EWS');
+//     }
+
+//     if(central_object.formData.caste != 'OPEN' && central_object.formData.caste != 'EWS' && central_object.formData.gender == 'Male'){
+//         headData.push(`G${central_object.formData.caste}`)
+//     }
+
+//     if(central_object.formData.gender == 'Female'){
+//         headData.push('LOPEN');
+
+//         if(central_object.formData.caste != 'OPEN' && central_object.formData.caste != 'EWS'){
+//             headData.push(`L${central_object.formData.caste}`)
+//         }
+//     }
+    
+//     if(central_object.formData.tfws){
+//         headData.push('TFWS');
+//     }
+
+//     let count = 1;
+//     const tableData = [];
+    
+//     central_object.final_college_list.forEach(college => {
+//         // Regular seat
+//         let row = [
+//             count++,
+//             college.choice_code,
+//             college.college_name,
+//             college.branch_name,
+//             college.gopen
+//         ];
+        
+//         if(central_object.formData.caste == 'EWS'){
+//             row.push(college.ews);
+//         }
+        
+//         if(central_object.formData.caste != 'OPEN' && central_object.formData.caste != 'EWS' && central_object.formData.gender == 'Male'){
+//             let c = `G${central_object.formData.caste}`;
+//             row.push(college[c.toLowerCase()]);
+//         }
+
+//         if(central_object.formData.gender == 'Female'){
+//             row.push(college.lopen);
+//             if(central_object.formData.caste != 'EWS' && central_object.formData.caste != 'OPEN'){
+//                 let c = `L${central_object.formData.caste}`;
+//                 row.push(college[c.toLowerCase()]);
+//             }
+//         }
+        
+//         if(central_object.formData.tfws){
+//             row.push(college.tfws);
+//         }
+        
+//         tableData.push(row);
+        
+       
+//     });
+
+//     // Add table
+//     doc.autoTable({
+//         head: [headData],
+//         body: tableData,
+//         startY: currentY,
+//         theme: 'grid',
+//         headStyles: {
+//             fillColor: [26, 58, 143],
+//             textColor: 255,
+//             fontSize: 8
+//         },
+//         bodyStyles: {
+//             fontSize: 7
+//         },
+//         alternateRowStyles: {
+//             fillColor: [240, 240, 240]
+//         },
+//         margin: { left: 14 },
+//         didDrawPage: function (data) {
+//             // Note position — slightly above the bottom of the page
+//             const pageHeight = doc.internal.pageSize.height;
+//             doc.setFontSize(8);
+//             doc.setTextColor(100);
+//             doc.text(
+//                 'Disclaimer: The information, predictions, and content provided by CampusDekho.ai , including college predictor and branch-wise prediction tools, are intended solely for reference purposes. While we strive to ensure',
+//                 14,
+//                 pageHeight - 11
+//             );
+//             doc.text(
+//                 'the accuracy and reliability of the data presented, we do not guarantee or assure that the results and outcomes shown are 100% accurate or conclusive. Candidates are strongly advised to independently verify and',
+//                 14,
+//                 pageHeight - 7
+//             );
+//             doc.text(
+//                 'validate all information before making any decisions based on the provided.',
+//                 14,
+//                 pageHeight - 3
+//             );
+//         }
+//     });
+
+//     // Save the PDF
+//     doc.save('mht_cet_preference_list.pdf');
+// }
+
+function generatePdf() {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({
+        orientation: 'landscape',
+        unit: 'mm',
+        format: 'a4'
+    });
+
+    // Add watermark to first page
+    addWatermark(doc);
+
+    // Add title
+    doc.setFontSize(30);
+    doc.text('CampusDekho.ai', 14, 20);
+    doc.setFontSize(12);
+    
+    // Student information
+    doc.text(`Percentile: ${central_object.formData.generalRank}`, 14, 30);
+    doc.text(`Gender: ${central_object.formData.gender}`, 14, 36);
+    doc.text(`Home University: ${central_object.formData.homeuniversity}`, 14, 42);
+    doc.text(`Caste: ${central_object.formData.caste}`, 14, 48);
+
+    // Format branch category
+    const branch_cat_obj = {
+        All: 'All',
+        CIVIL: 'Civil',
+        COMP: 'Computer Science',
+        IT: 'Information Technology',
+        COMPAI: 'CSE (Artificial Intelligence)',
+        AI: 'Artificial Intelligence',
+        ELECTRICAL: 'Electrical',
+        ENTC: 'ENTC',
+        MECH: 'Mechanical',
+        OTHER: 'Other'
+    };
+
+    const branch_categories = central_object.formData.branchCategories
+        .map(el => branch_cat_obj[el] || el)
+        .join(", ");
+
+    // Add branch categories with text wrapping
+    const wrappedBranchText = doc.splitTextToSize(`Branch Categories: ${branch_categories}`, 270);
+    let currentY = 54;
+    doc.text(wrappedBranchText, 14, currentY);
+    currentY += wrappedBranchText.length * 6;
+
+    // Add selected branches if any
+    if (selectedBranches.length > 0) {
+        const selectedBranchesText = doc.splitTextToSize(`Selected Branches: ${selectedBranches.join(", ")}`, 270);
+        doc.text(selectedBranchesText, 14, currentY);
+        currentY += selectedBranchesText.length * 6;
     }
 
-    const pdfTableBody = document.getElementById('pdfTableBody');
-    pdfTableBody.innerHTML = '';
-    let index = 1;
-    central_object.final_college_list.forEach((college) => {
-        const row = document.createElement('tr');
-        row.innerHTML = `
-            <td>${index}</td>
-            <td>${college.choice_code}</td>
-            <td>${college.college_name}</td>
-            <td>${college.branch_name}</td>
-            <td>${college.university}</td>
-            <td>${college.seat_type}</td>
-        `;
-        index++;
-        pdfTableBody.appendChild(row);
+    // Format city list
+    const cityString = central_object.formData.city.includes("All") ? "All Regions" : central_object.formData.city.join(", ");
+    const wrappedCityText = doc.splitTextToSize(`Cities: ${cityString}`, 270);
+    doc.text(wrappedCityText, 14, currentY);
+    currentY += wrappedCityText.length * 6;
+
+    // TFWS status
+    const tfwsText = central_object.formData.tfws ? 'TFWS: Yes' : 'TFWS: No';
+    doc.text(tfwsText, 14, currentY);
+    currentY += 10;
+
+    // Prepare table data
+    let headData = ['No.', 'Choice Code', 'College Name', 'Branch', 'GOPEN'];
+
+    if(central_object.formData.caste == 'EWS'){
+        headData.push('EWS');
+    }
+
+    if(central_object.formData.caste != 'OPEN' && central_object.formData.caste != 'EWS' && central_object.formData.gender == 'Male'){
+        headData.push(`G${central_object.formData.caste}`)
+    }
+
+    if(central_object.formData.gender == 'Female'){
+        headData.push('LOPEN');
+
+        if(central_object.formData.caste != 'OPEN' && central_object.formData.caste != 'EWS'){
+            headData.push(`L${central_object.formData.caste}`)
+        }
+    }
+    
+    if(central_object.formData.tfws){
+        headData.push('TFWS');
+    }
+
+    let count = 1;
+    const tableData = [];
+    
+    central_object.final_college_list.forEach(college => {
+        // Regular seat
+        let row = [
+            count++,
+            college.choice_code,
+            college.college_name,
+            college.branch_name,
+            college.gopen
+        ];
+        
+        if(central_object.formData.caste == 'EWS'){
+            row.push(college.ews);
+        }
+        
+        if(central_object.formData.caste != 'OPEN' && central_object.formData.caste != 'EWS' && central_object.formData.gender == 'Male'){
+            let c = `G${central_object.formData.caste}`;
+            row.push(college[c.toLowerCase()]);
+        }
+
+        if(central_object.formData.gender == 'Female'){
+            row.push(college.lopen);
+            if(central_object.formData.caste != 'EWS' && central_object.formData.caste != 'OPEN'){
+                let c = `L${central_object.formData.caste}`;
+                row.push(college[c.toLowerCase()]);
+            }
+        }
         
         if(central_object.formData.tfws){
-            const row_1 = document.createElement('tr');
-            row_1.innerHTML = `
-                <td>${index}</td>
-                <td>${college.choice_code}T</td>
-                <td>${college.college_name}</td>
-                <td>${college.branch_name}</td>
-                <td>${college.university}</td>
-                <td>${college.seat_type}</td>
-            `;
-            index++;
-            pdfTableBody.appendChild(row_1);
+            row.push(college.tfws);
+        }
+        
+        tableData.push(row);
+    });
+
+    // Add table
+    doc.autoTable({
+        head: [headData],
+        body: tableData,
+        startY: currentY,
+        theme: 'grid',
+        headStyles: {
+            fillColor: [26, 58, 143],
+            textColor: 255,
+            fontSize: 8
+        },
+        bodyStyles: {
+            fontSize: 7
+        },
+        alternateRowStyles: {
+            fillColor: [240, 240, 240]
+        },
+        margin: { left: 14 },
+        didDrawPage: function (data) {
+            // Add watermark to each subsequent page
+            addWatermark(doc);
+            
+            // Disclaimer text
+            const pageHeight = doc.internal.pageSize.height;
+            doc.setFontSize(8);
+            doc.setTextColor(100);
+            doc.text(
+                'Disclaimer: The information, predictions, and content provided by CampusDekho.ai , including college predictor and branch-wise prediction tools, are intended solely for reference purposes. While we strive to ensure',
+                14,
+                pageHeight - 11
+            );
+            doc.text(
+                'the accuracy and reliability of the data presented, we do not guarantee or assure that the results and outcomes shown are 100% accurate or conclusive. Candidates are strongly advised to independently verify and',
+                14,
+                pageHeight - 7
+            );
+            doc.text(
+                'validate all information before making any decisions based on the provided.',
+                14,
+                pageHeight - 3
+            );
         }
     });
 
-    // document.getElementById('pdfContainer').classList.remove('hidden');
-    // document.getElementById('pdfContainer').scrollIntoView({ behavior: 'smooth' });
-    printPdf();
+    // Save the PDF
+    doc.save('Engineering_Preference_List.pdf');
+
+    function addWatermark(doc) {
+        const pageWidth = doc.internal.pageSize.width;
+        const pageHeight = doc.internal.pageSize.height;
+        
+        // Save current graphics state
+        doc.saveGraphicsState();
+        
+        // Set watermark properties - YELLOW COLOR
+        doc.setFontSize(90);
+        doc.setTextColor(0, 112, 192);
+        doc.setGState(new doc.GState({ opacity: 0.15 })); // 15% opacity
+        
+        // Calculate centered position
+        const text = 'CampusDekho.ai';
+        const textWidth = doc.getStringUnitWidth(text) * doc.internal.getFontSize() / doc.internal.scaleFactor;
+        const x = (pageWidth - textWidth) / 2;
+        const y = pageHeight / 2;
+        
+        // Add single centered watermark
+        doc.text(text, x, y);
+        
+        // Restore graphics state
+        doc.restoreGraphicsState();
+    }
 }
-
-function printPdf() {
-    const printWindow = window.open('', '', 'width=800,height=600');
-    printWindow.document.write(`
-        <html>
-            <head>
-                <title>CampusDekho.ai</title>
-                <style>
-                    @page {
-                        size: landscape;
-                        margin: 10mm;
-                    }
-                    body {
-                        font-family: Arial, sans-serif;
-                        margin: 0;
-                        padding: 0;
-                    }
-                    table {
-                        width: 100%;
-                        border-collapse: collapse;
-                        font-size: 12px;
-                    }
-                    th, td {
-                        border: 1px solid #ddd;
-                        padding: 6px;
-                        text-align: left;
-                    }
-                    th {
-                        background-color: #f2f2f2;
-                    }
-                    h1 {
-                        text-align: center;
-                        margin-bottom: 20px;
-                    }
-                    .pdf-student{
-                        width: 100%;
-                        display: flex;
-                        flex-direction: column;
-                        margin: 50px;
-                    }
-                    .pdf-student-info{
-                        width: 100%;
-                        height: 15px;
-                        font-size: 20px;
-                        color: black;
-                        margin: 5px;
-                    }
-                </style>
-            </head>
-            <body>
-                <div class="pdf-student">
-                    <div class="pdf-student-info">Name : Campus Dekho</div>
-                    <div class="pdf-student-info">General Rank : ${central_object.formData.generalRank}</div>
-                    <div class="pdf-student-info">Gender : ${central_object.formData.gender}</div>
-                    <div class="pdf-student-info">Home University :  ${central_object.formData.homeuniversity}</div>
-                    <div class="pdf-student-info">Caste :  ${central_object.formData.caste}</div>
-                </div>
-
-                <h1>MHT CET Preference list</h1>
-                
-                ${document.getElementById('pdfTable').outerHTML}
-                <script>
-                    window.onload = function() {
-                        setTimeout(function() {
-                            window.print();
-                            window.close();
-                        }, 200);
-                    };
-                </script>
-            </body>
-        </html>
-    `);
-    printWindow.document.close();
-}
-
-
