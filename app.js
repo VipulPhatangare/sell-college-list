@@ -30,8 +30,6 @@ const connectDB = async () => {
 
 connectDB();
 
-
-
 const session = require('express-session');
 
 app.use(session({
@@ -60,7 +58,6 @@ const central_object = {
 app.get('/',(req, res)=>{
     res.render('payementPage');
 });
-
 
 app.get('/:code/:count', async (req, res) => {
     const { code, count } = req.params;
