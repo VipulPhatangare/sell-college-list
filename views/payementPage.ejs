@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -8,11 +9,13 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <link rel="stylesheet" href="/css/paymentPage.css">
 </head>
+
 <body>
     <div class="container">
         <header>
             <h1>Best Plans For Your College Preference List</h1>
-            <p>Choose the plan that's right for your college admission process and get your personalized preference list.</p>
+            <p>Choose the plan that's right for your college admission process and get your personalized preference
+                list.</p>
         </header>
 
         <div class="plans-container">
@@ -49,7 +52,7 @@
                         <i class="fas fa-check-circle"></i>
                         <span>Up to 150 college choices</span>
                     </div>
-                    
+
                 </div>
                 <button class="select-btn" onclick="openModal('Plus')">Select Plan</button>
             </div>
@@ -68,16 +71,19 @@
                         <i class="fas fa-check-circle"></i>
                         <span>Up to 300 college choices</span>
                     </div>
-                    
+
                 </div>
                 <button class="select-btn" onclick="openModal('Premium')">Select Plan</button>
             </div>
         </div>
 
         <div class="note-box">
-            <strong>Disclaimer: </strong> The information, predictions, and content provided by CampusDekho.ai, including preference List generator, college predictor and branch-wise prediction tools,
-            are intended solely for reference purposes. While we strive to ensure the accuracy and reliability of the data presented, we do not guarantee or
-            assure that the results and outcomes shown are 100% accurate or conclusive. Candidates are strongly advised to independently verify and
+            <strong>Disclaimer: </strong> The information, predictions, and content provided by CampusDekho.ai,
+            including preference List generator, college predictor and branch-wise prediction tools,
+            are intended solely for reference purposes. While we strive to ensure the accuracy and reliability of the
+            data presented, we do not guarantee or
+            assure that the results and outcomes shown are 100% accurate or conclusive. Candidates are strongly advised
+            to independently verify and
             validate all information before making any decisions based on the provided.
         </div>
     </div>
@@ -103,11 +109,85 @@
                     <label for="phone">Phone Number</label>
                     <input type="tel" id="phone" required>
                 </div>
-                <button type="submit" class="submit-btn">Proceed to Payment</button>
+                <button type="submit" class="submit-btn" id="proceedToPaymentBtn">Proceed to Payment</button>
             </form>
         </div>
     </div>
 
     <script src="/js/paymentPage.js"></script>
+    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+    <script>
+        let userPaymentInfo = {};
+        document.getElementById('proceedToPaymentBtn').addEventListener('click', async function (e) {
+            e.preventDefault();
+            const name = document.getElementById('name').value;
+            const email = document.getElementById('email').value;
+            const phone = document.getElementById('phone').value;
+            const plan = document.getElementById('modalPlanName').textContent.replace(' Plan', '');
+            console.log('Button click values:', { name, email, phone, plan }); // Debug log
+
+            let amount = 299;
+            if (plan === 'Plus') amount = 499;
+            if (plan === 'Premium') amount = 999;
+
+            userPaymentInfo = { name, email, phone, plan };
+
+            // Store in sessionStorage immediately (DO NOT REMOVE THESE LINES)
+            sessionStorage.setItem('userPaymentName', name);
+            sessionStorage.setItem('userPaymentEmail', email);
+            sessionStorage.setItem('userPaymentPhone', phone);
+            sessionStorage.setItem('userPaymentPlan', plan);
+
+            const res = await fetch('/api/payment/create-order', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ amount, name, email, phone, plan })
+            });
+            const order = await res.json();
+            const options = {
+                key: "<%= razorpayKeyId %>",
+                amount: order.amount,
+                currency: order.currency,
+                name: "CampusDekho",
+                description: plan + " Plan",
+                order_id: order.id,
+                handler: async function (response) {
+                    // Always use values from sessionStorage
+                    const paymentData = {
+                        name: sessionStorage.getItem('userPaymentName'),
+                        email: sessionStorage.getItem('userPaymentEmail'),
+                        phone: sessionStorage.getItem('userPaymentPhone'),
+                        plan: sessionStorage.getItem('userPaymentPlan'),
+                        razorpay_payment_id: response.razorpay_payment_id,
+                        razorpay_order_id: response.razorpay_order_id
+                    };
+                    console.log('Sending payment data to backend:', paymentData);
+                    const storeRes = await fetch('/api/payment/store', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(paymentData)
+                    });
+                    const storeData = await storeRes.json();
+                    console.log('Payment store response:', storeData);
+                    if (storeData.success && storeData.count) {
+                        sessionStorage.setItem('count', storeData.count);
+                        sessionStorage.setItem('email', paymentData.email); // Store email
+                    }
+                    alert('Payment verified and successful! Payment ID: ' + response.razorpay_payment_id);
+                },
+                prefill: {
+                    name: name,
+                    email: email,
+                    contact: phone
+                },
+                theme: {
+                    color: "#3399cc"
+                }
+            };
+            const rzp = new Razorpay(options);
+            rzp.open();
+        });
+    </script>
 </body>
+
 </html>

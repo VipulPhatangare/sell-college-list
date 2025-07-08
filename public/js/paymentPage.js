@@ -42,7 +42,7 @@ document.getElementById('planForm').addEventListener('submit', function(e) {
     
     // Here you would typically send this data to your server
     // For demo, we'll just show an alert
-    alert(`Thank you, ${name}! You've selected the ${planName} plan. We'll contact you at ${email} or ${phone} to proceed with payment and collect your preferences.`);
+    // alert(`Thank you, ${name}! You've selected the ${planName} plan. We'll contact you at ${email} or ${phone} to proceed with payment and collect your preferences.`);
     
     closeModal();
     
