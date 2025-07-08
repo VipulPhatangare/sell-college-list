@@ -1320,6 +1320,6 @@ app.post('/savePdf', upload.single('pdf'), async (req, res) => {
     }
 });
 
-app.listen(port, () => {
-    console.log(`Listening on port: ${port}`);
+app.listen(port || 3000, () => {
+  console.log(`VP Server is running on port ${port || 3000}`);
 });
