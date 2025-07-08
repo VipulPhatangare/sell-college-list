@@ -1,11 +1,35 @@
-
-
 const express = require("express");
 const app = express();
 const path = require("path");
 const { createClient } = require('@supabase/supabase-js');
+const mongoose = require('mongoose');
+
+const multer = require('multer');
+const upload = multer();
 
 require('dotenv').config();
+
+const pdfSchema = new mongoose.Schema({
+  email: String,
+  examType: String,
+  pdf: { type: Buffer, required: true }, 
+  createdAt: { type: Date, default: Date.now }
+});
+
+const Pdf = mongoose.model('Pdf', pdfSchema);
+
+const connectDB = async () => {
+  try {
+    await mongoose.connect(process.env.MONGODB_URI);
+    console.log('VP MongoDB connected');
+  } catch (err) {
+    console.error('VP MongoDB connection failed:', err.message);
+    process.exit(1);
+  }
+};
+
+connectDB();
+
 
 
 const session = require('express-session');
@@ -28,6 +52,16 @@ const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_KEY;
 const supabase = createClient(supabaseUrl, supabaseKey);
 
+
+const central_object = {
+    percentile: 0
+}
+
+app.get('/',(req, res)=>{
+    res.render('payementPage');
+});
+
+
 app.get('/:code/:count', async (req, res) => {
     const { code, count } = req.params;
     // console.log(count);
@@ -48,6 +82,7 @@ app.get('/:code/:count', async (req, res) => {
             // Code exists in DB
             req.session.code = code;
             req.session.count = count;
+            req.session.email = 'vipulphatangare3@gmail.com';
             res.render('home');
         } else {
             // Code does not exist
@@ -56,13 +91,11 @@ app.get('/:code/:count', async (req, res) => {
     }else{
         req.session.code = code;
         req.session.count = count;
+        req.session.email = 'vipulphatangare3@gmail.com';
         res.render('home');
     }
 });
 
-const central_object = {
-    percentile: 0
-}
 
 app.get('/fetchBranches', async (req, res) => {
     try {
@@ -164,7 +197,6 @@ async function getSelectedBranchCode(selected_branches) {
     }
 }
 
-
 function calculateRankRange(formData) {
 
     let subMinRank = 0;
@@ -200,7 +232,6 @@ function calculateRankRange(formData) {
     new_data_of_student.minRank = minRank;
     new_data_of_student.maxRank = 2000000; 
 }
-
 
 function clear_new_data_function() {
     new_data_of_student.caste_name = '';
@@ -1138,7 +1169,6 @@ async function getColleges(formData) {
 
 }
 
-
 function college_filter_by_city(colleges, city) {
     return colleges.filter(element => city.includes(element.city));
 }
@@ -1193,8 +1223,6 @@ function college_filter(colleges, formData) {
     });
     return college_list;
 }
-
-
 
 app.post('/College_list', async (req, res) => {
     const formData = req.body;
@@ -1257,6 +1285,41 @@ app.post('/College_list', async (req, res) => {
     } catch (error) {
         console.log(error);
         res.status(500).json({ error: 'Failed to fetch colleges' });
+    }
+});
+
+app.post('/savePdf', upload.single('pdf'), async (req, res) => {
+    try {
+        // Check if file exists
+        if (!req.file) {
+            return res.status(400).json({
+                success: false,
+                message: 'No PDF file uploaded'
+            });
+        }
+
+        const exam = req.body.exam; // No need to parse, it's already an object
+        const pdfBuffer = req.file.buffer; 
+        const email = req.session.email;
+        
+        const newPreferenceList = new Pdf({
+            email: email,
+            examType: exam,
+            pdf: pdfBuffer
+        });
+
+        await newPreferenceList.save();
+        
+        res.json({ 
+            success: true,
+            message: 'PDF stored successfully'
+        });
+    } catch (error) {
+        console.error('Error storing PDF:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to store PDF: ' + error.message
+        });
     }
 });
 
