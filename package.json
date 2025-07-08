@@ -1,14 +1,13 @@
 {
   "name": "college-predictor",
   "version": "1.0.0",
-  "main": "index.js",
+  "main": "app.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node server.js"
+    "start": "node app.js"
   },
   "author": "",
   "license": "ISC",
-  "description": "",
   "dependencies": {
     "@supabase/supabase-js": "^2.49.4",
     "dotenv": "^16.5.0",
